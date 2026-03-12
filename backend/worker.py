@@ -442,8 +442,8 @@ def run_scan4all(domains: list, program_name: str = "") -> str:
             worker_state.add_log("WARN", f"{prefix}Falha ao remover {_p}: {e}")
 
     hosts_arg = ",".join(domains)
-    cmd = [SCAN4ALL_BIN, "-host", hosts_arg, "-v"]
-    worker_state.add_log("INFO", f"{prefix}Comando: {SCAN4ALL_BIN} -host <{len(domains)} hosts> -v")
+    cmd = [SCAN4ALL_BIN, "-host", hosts_arg, "-v", "-stream"]
+    worker_state.add_log("INFO", f"{prefix}Comando: {SCAN4ALL_BIN} -host <{len(domains)} hosts> -v -stream")
 
     proc = None
     output = ""

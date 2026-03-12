@@ -32,17 +32,7 @@ H1_CSRF_TOKEN = os.getenv("H1_CSRF_TOKEN", "")
 H1_GRAPHQL_URL = "https://hackerone.com/graphql"
 
 # Tipos de display_name considerados domínios/URLs escaneáveis
-# Valores reais retornados pelo GraphQL do HackerOne (campo display_name do StructuredScopeDocument)
-DOMAIN_DISPLAY_TYPES = {
-    # Valores comuns
-    "Domain", "Url", "Api", "Wildcard",
-    # Variações em caixa alta (enum GraphQL real)
-    "URL", "WILDCARD", "DOMAIN", "API",
-    # Variações mistas
-    "url", "wildcard", "domain", "api",
-    # Outros valores observados na API
-    "Web", "WEB", "web",
-}
+DOMAIN_DISPLAY_TYPES = {"Domain", "Url", "Api", "Wildcard"}
 
 
 def _clean_domain(identifier: str, keep_wildcard: bool = False) -> str:

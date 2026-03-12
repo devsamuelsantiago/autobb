@@ -454,34 +454,50 @@ def run_scan4all(domains: list, program_name: str = "") -> str:
     cmd = [SCAN4ALL_BIN, "-host", hosts_arg, "-v", "-stream", "-nmap-cli", nmap_cli]
     worker_state.add_log("INFO", f"{prefix}Comando: {SCAN4ALL_BIN} -host <{len(domains)} hosts> -v -stream -nmap-cli '...'")
 
+    _scan_start = datetime.utcnow()
     proc = None
     output = ""
+    cancelled = Falseelled = False
     try:
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # merge stderr no stdout
             text=True,
             cwd=workdir,
         )
-        try:
-            stdout, stderr = proc.communicate(timeout=SCAN_TIMEOUT)
-            output = stdout + "\n" + stderr
-        except subprocess.TimeoutExpired:
-            msg = f"{prefix}Scan expirou após {SCAN_TIMEOUT}s"
-            worker_state.add_log("WARN", msg)
-            output = f"[TIMEOUT] {msg}"
+        lines = []
+        # Lê linha a linha para poder abortar se _SHUTDOWN for setado
+        for line in proc.stdout:
+            if _SHUTDOWN.is_set():
+                cancelled = True
+                worker_state.add_log("WARN", f"{prefix}Cancelado pelo usuário, abortando scan4all...")
+                proc.kill()
+                proc.wait(timeout=5)
+                break
+            lines.append(line)
+            # Timeout manual
+            elapsed = (datetime.utcnow() - _scan_start).total_seconds()
+            if elapsed > SCAN_TIMEOUT:
+                worker_state.add_log("WARN", f"{prefix}Scan expirou após {SCAN_TIMEOUT}s")
+                proc.kill()
+                proc.wait(timeout=5)
+                lines.append(f"[TIMEOUT after {SCAN_TIMEOUT}s]\n")
+                break
+        output = "".join(lines)
+        if not cancelled and proc.poll() is None:
+            proc.wait(timeout=10)
     except FileNotFoundError:
         msg = f"{prefix}Binário '{SCAN4ALL_BIN}' não encontrado. Verifique SCAN4ALL_BIN no .env"
         worker_state.add_log("ERROR", msg)
         output = f"[ERROR] {msg}"
     except (KeyboardInterrupt, SystemExit):
         _SHUTDOWN.set()
+        cancelled = True
         if proc and proc.poll() is None:
             proc.kill()
         raise
     finally:
-        # SIGKILL garante que o scan4all não tem chance de gravar resume.cfg
         if proc and proc.poll() is None:
             try:
                 proc.kill()
@@ -489,7 +505,7 @@ def run_scan4all(domains: list, program_name: str = "") -> str:
             except Exception:
                 pass
 
-        # Remove resume.cfg em todos os lugares possíveis da hierarquia
+        # Remove resume.cfg e workdir
         _resume_paths = [
             os.path.join(workdir,       "resume.cfg"),
             os.path.join(backend_dir,   "resume.cfg"),
@@ -504,10 +520,11 @@ def run_scan4all(domains: list, program_name: str = "") -> str:
                     worker_state.add_log("INFO", f"{prefix}resume.cfg removido: {_rp}")
             except Exception:
                 pass
-
-        # Remove o workdir (inclui .DbCache)
         shutil.rmtree(workdir, ignore_errors=True)
 
+    # Sinaliza cancelamento no output para process_program detectar
+    if cancelled or _SHUTDOWN.is_set():
+        return "[CANCELLED]"
     return output
 
 
@@ -580,7 +597,7 @@ def process_program(program: dict) -> None:
         raw_output = run_scan4all(domains, program_name)
 
         # 3. Salvar scan — logs = stdout/stderr real do scan4all
-        if _SHUTDOWN.is_set():
+        if _SHUTDOWN.is_set() or raw_output == "[CANCELLED]":
             worker_state.add_log("WARN", f"[{program_name}] Cancelado, não salvando resultados.")
             return
 

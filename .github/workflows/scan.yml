@@ -30,7 +30,11 @@ jobs:
         run: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 
       - name: Install scan4all
-        run: go install github.com/hktalent/scan4all@latest
+        run: |
+          wget -q https://github.com/hktalent/scan4all/releases/latest/download/scan4all_linux_amd64.zip -O scan4all.zip
+          unzip -q scan4all.zip
+          chmod +x scan4all
+          sudo mv scan4all /usr/local/bin/scan4all
 
       - name: Install Python deps
         run: pip install -r backend/requirements.txt
@@ -41,7 +45,7 @@ jobs:
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
           H1_CSRF_TOKEN=${{ secrets.H1_CSRF_TOKEN }}
-          SCAN4ALL_BIN=$(go env GOPATH)/bin/scan4all
+          SCAN4ALL_BIN=/usr/local/bin/scan4all
           SUBFINDER_BIN=$(go env GOPATH)/bin/subfinder
           SUBFINDER_TIMEOUT=1200000
           SCAN_TIMEOUT=360000

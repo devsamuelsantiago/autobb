@@ -32,7 +32,17 @@ H1_CSRF_TOKEN = os.getenv("H1_CSRF_TOKEN", "")
 H1_GRAPHQL_URL = "https://hackerone.com/graphql"
 
 # Tipos de display_name considerados domínios/URLs escaneáveis
-DOMAIN_DISPLAY_TYPES = {"Domain", "Url", "Api", "Wildcard"}
+# Valores reais retornados pelo GraphQL do HackerOne (campo display_name do StructuredScopeDocument)
+DOMAIN_DISPLAY_TYPES = {
+    # Valores comuns
+    "Domain", "Url", "Api", "Wildcard",
+    # Variações em caixa alta (enum GraphQL real)
+    "URL", "WILDCARD", "DOMAIN", "API",
+    # Variações mistas
+    "url", "wildcard", "domain", "api",
+    # Outros valores observados na API
+    "Web", "WEB", "web",
+}
 
 
 def _clean_domain(identifier: str, keep_wildcard: bool = False) -> str:
@@ -232,6 +242,7 @@ def get_program_scope(handle: str, scope_url: str = "") -> list[str]:
         nodes = search.get("nodes", [])
         total = search.get("total_count", 0)
 
+        seen_types: set[str] = set()
         for node in nodes:
             if node.get("__typename") != "StructuredScopeDocument":
                 continue
@@ -240,6 +251,7 @@ def get_program_scope(handle: str, scope_url: str = "") -> list[str]:
 
             identifier   = node.get("identifier", "").strip()
             display_name = node.get("display_name", "")
+            seen_types.add(display_name)
 
             # Filtra apenas assets do tipo domínio/URL/API
             if display_name not in DOMAIN_DISPLAY_TYPES:
@@ -257,7 +269,7 @@ def get_program_scope(handle: str, scope_url: str = "") -> list[str]:
         page_info = search.get("pageInfo", {})
         has_next  = page_info.get("hasNextPage", False)
 
-        print(f"[H1] '{handle}': {len(nodes)} nós recebidos | total={total} | hasNextPage={has_next}")
+        print(f"[H1] '{handle}': {len(nodes)} nós recebidos | total={total} | hasNextPage={has_next} | tipos={seen_types}")
 
         if not has_next or from_ >= total:
             break

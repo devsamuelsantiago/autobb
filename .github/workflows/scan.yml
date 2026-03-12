@@ -36,7 +36,7 @@ jobs:
             | grep linux_amd64.zip \
             | cut -d '"' -f 4)
           wget -q "$DOWNLOAD_URL" -O scan4all.zip
-          unzip -q scan4all.zip
+          unzip -o -q scan4all.zip scan4all
           chmod +x scan4all
           sudo mv scan4all /usr/local/bin/scan4all
 

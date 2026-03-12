@@ -30,7 +30,7 @@ jobs:
         run: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 
       - name: Install scan4all
-        run: go install github.com/GangGreenTemperTatum/scan4all@latest
+        run: go install github.com/hktalent/scan4all@latest
 
       - name: Install Python deps
         run: pip install -r backend/requirements.txt

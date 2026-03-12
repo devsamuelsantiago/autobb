@@ -42,10 +42,10 @@ jobs:
           SCAN4ALL_BIN=$(go env GOPATH)/bin/scan4all
           SUBFINDER_BIN=$(go env GOPATH)/bin/subfinder
           SUBFINDER_TIMEOUT=1200000
-          SCAN_TIMEOUT=18000
+          SCAN_TIMEOUT=360000
           WORKER_INTERVAL=21600
           PARALLEL_WORKERS=2
-          RESCAN_HOURS=6
+          RESCAN_HOURS=72
           DISCORD_WEBHOOK=${{ secrets.DISCORD_WEBHOOK }}
           EOF
 

@@ -33,7 +33,9 @@ from db import get_all_programs, save_scan, save_vulnerabilities, get_recently_s
 from hackerone import get_program_scope
 from parser import parse_scan4all_output
 
-load_dotenv()
+# Carrega .env da raiz do repo (um nível acima de backend/)
+_root_env = os.path.join(os.path.dirname(__file__), "..", ".env")
+load_dotenv(dotenv_path=_root_env)
 
 logging.basicConfig(
     level=logging.INFO,

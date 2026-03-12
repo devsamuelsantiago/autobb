@@ -749,7 +749,10 @@
 
 <script>
   // ── Config ─────────────────────────────────────────────────────────────────
-  const API = window.location.origin;
+  // Se o frontend estiver no GitHub Pages, aponta para o backend externo.
+  // Troque BACKEND_URL pela URL real do seu backend (ex: Render, Railway).
+  const BACKEND_URL = ''; // ex: 'https://autobb.onrender.com'
+  const API = BACKEND_URL || window.location.origin;
 
   let chartDonut   = null;
   let chartBar     = null;

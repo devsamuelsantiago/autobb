@@ -67,6 +67,9 @@ RESCAN_HOURS = int(os.getenv("RESCAN_HOURS", "24"))
 # Discord webhook URL (opcional)
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "")
 
+# Flag global: True quando o usuário pediu cancelamento (Ctrl+C)
+_SHUTDOWN = threading.Event()
+
 # Cores por severidade (Discord embed colors)
 _SEV_COLOR = {
     "critical": 0xFF0000,
@@ -442,8 +445,14 @@ def run_scan4all(domains: list, program_name: str = "") -> str:
             worker_state.add_log("WARN", f"{prefix}Falha ao remover {_p}: {e}")
 
     hosts_arg = ",".join(domains)
-    cmd = [SCAN4ALL_BIN, "-host", hosts_arg, "-v", "-stream"]
-    worker_state.add_log("INFO", f"{prefix}Comando: {SCAN4ALL_BIN} -host <{len(domains)} hosts> -v -stream")
+    nmap_cli = (
+        "nmap -n --unique --resolve-all -Pn "
+        "--min-hostgroup 64 --max-retries 0 --host-timeout 10m "
+        "--script-timeout 3m --version-intensity 9 "
+        "--min-rate 10000 -T4"
+    )
+    cmd = [SCAN4ALL_BIN, "-host", hosts_arg, "-v", "-stream", "-nmap-cli", nmap_cli]
+    worker_state.add_log("INFO", f"{prefix}Comando: {SCAN4ALL_BIN} -host <{len(domains)} hosts> -v -stream -nmap-cli '...'")
 
     proc = None
     output = ""
@@ -467,7 +476,10 @@ def run_scan4all(domains: list, program_name: str = "") -> str:
         worker_state.add_log("ERROR", msg)
         output = f"[ERROR] {msg}"
     except (KeyboardInterrupt, SystemExit):
-        output = "[CANCELLED]"
+        _SHUTDOWN.set()
+        if proc and proc.poll() is None:
+            proc.kill()
+        raise
     finally:
         # SIGKILL garante que o scan4all não tem chance de gravar resume.cfg
         if proc and proc.poll() is None:
@@ -568,6 +580,10 @@ def process_program(program: dict) -> None:
         raw_output = run_scan4all(domains, program_name)
 
         # 3. Salvar scan — logs = stdout/stderr real do scan4all
+        if _SHUTDOWN.is_set():
+            worker_state.add_log("WARN", f"[{program_name}] Cancelado, não salvando resultados.")
+            return
+
         worker_state.set_active(program_name, "Salvando no Supabase...")
         scan4all_lines = [l for l in raw_output.splitlines() if l.strip()]
         scan = save_scan(
@@ -598,9 +614,10 @@ def process_program(program: dict) -> None:
     except Exception:
         raise
     finally:
-        # Notifica resumo no Discord sempre — mesmo se deu erro parcial
-        duration = int((datetime.utcnow() - _prog_start).total_seconds())
-        discord_notify_scan_done(program_name, _final_domains, _final_vulns, duration)
+        # Só notifica resumo no Discord se não foi cancelado pelo usuário
+        if not _SHUTDOWN.is_set():
+            duration = int((datetime.utcnow() - _prog_start).total_seconds())
+            discord_notify_scan_done(program_name, _final_domains, _final_vulns, duration)
         worker_state.finish_active(program_name)
 
 
@@ -667,6 +684,9 @@ def run_worker_once() -> None:
                             worker_state.add_log("ERROR", f"[✗] Erro em '{name}': {e}")
                             worker_state.last_error = str(e)
 
+    except KeyboardInterrupt:
+        _SHUTDOWN.set()
+        worker_state.add_log("WARN", "Worker interrompido pelo usuário (Ctrl+C).")
     except Exception as e:
         worker_state.add_log("ERROR", f"Erro fatal no worker: {e}")
         worker_state.last_error = str(e)
@@ -677,22 +697,29 @@ def run_worker_once() -> None:
         worker_state.current_step = "Finalizado"
         worker_state.current_program = ""
         worker_state.set_step("Finalizado")
-        worker_state.add_log("INFO", "=" * 50)
-        worker_state.add_log(
-            "INFO",
-            f"Ciclo completo: {worker_state.done_programs} programas em "
-            f"{(datetime.fromisoformat(worker_state.finished_at) - datetime.fromisoformat(worker_state.started_at)).seconds // 60}min"
-        )
-        worker_state.add_log("INFO", "=" * 50)
+        if not _SHUTDOWN.is_set():
+            worker_state.add_log("INFO", "=" * 50)
+            worker_state.add_log(
+                "INFO",
+                f"Ciclo completo: {worker_state.done_programs} programas em "
+                f"{(datetime.fromisoformat(worker_state.finished_at) - datetime.fromisoformat(worker_state.started_at)).seconds // 60}min"
+            )
+            worker_state.add_log("INFO", "=" * 50)
 
 
 def run_forever() -> None:
     """Loop infinito do worker."""
     log.info(f"Worker rodando a cada {WORKER_INTERVAL}s ({WORKER_INTERVAL // 3600}h)")
-    while True:
+    while not _SHUTDOWN.is_set():
         run_worker_once()
+        if _SHUTDOWN.is_set():
+            break
         log.info(f"Próximo ciclo em {WORKER_INTERVAL}s. Aguardando...")
-        time.sleep(WORKER_INTERVAL)
+        try:
+            _SHUTDOWN.wait(timeout=WORKER_INTERVAL)
+        except KeyboardInterrupt:
+            break
+    log.info("Worker encerrado.")
 
 
 if __name__ == "__main__":

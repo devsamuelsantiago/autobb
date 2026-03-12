@@ -31,7 +31,11 @@ jobs:
 
       - name: Install scan4all
         run: |
-          wget -q https://github.com/hktalent/scan4all/releases/latest/download/scan4all_linux_amd64.zip -O scan4all.zip
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/GhostTroops/scan4all/releases/latest \
+            | grep browser_download_url \
+            | grep linux_amd64.zip \
+            | cut -d '"' -f 4)
+          wget -q "$DOWNLOAD_URL" -O scan4all.zip
           unzip -q scan4all.zip
           chmod +x scan4all
           sudo mv scan4all /usr/local/bin/scan4all

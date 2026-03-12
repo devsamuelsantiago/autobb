@@ -1,0 +1,61 @@
+name: AutoBB Scan
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # a cada 6 horas
+  workflow_dispatch:          # permite rodar manualmente pelo GitHub
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350      # máximo por job no GitHub Actions
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install subfinder
+        run: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+
+      - name: Install scan4all
+        run: go install github.com/GangGreenTemperTatum/scan4all@latest
+
+      - name: Install Python deps
+        run: pip install -r backend/requirements.txt
+
+      - name: Create .env
+        run: |
+          cat > .env << EOF
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          H1_CSRF_TOKEN=${{ secrets.H1_CSRF_TOKEN }}
+          SCAN4ALL_BIN=$(go env GOPATH)/bin/scan4all
+          SUBFINDER_BIN=$(go env GOPATH)/bin/subfinder
+          SUBFINDER_TIMEOUT=1200000
+          SCAN_TIMEOUT=18000
+          WORKER_INTERVAL=21600
+          PARALLEL_WORKERS=2
+          RESCAN_HOURS=6
+          DISCORD_WEBHOOK=${{ secrets.DISCORD_WEBHOOK }}
+          EOF
+
+      - name: Run worker (one cycle)
+        run: |
+          cd backend
+          python - << 'PYEOF'
+          import sys, os
+          sys.path.insert(0, '.')
+          # Roda apenas um ciclo (não o loop infinito)
+          from worker import run_worker_once
+          run_worker_once()
+          PYEOF

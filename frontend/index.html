@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoBB — Bug Bounty Dashboard</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <!-- Feather Icons -->
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+
+  <style>
+    /* ── Reset & Variables ────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+
+      --critical: #f85149;
+      --high:     #ff7b72;
+      --medium:   #e3b341;
+      --low:      #3fb950;
+      --info:     #58a6ff;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── Navbar ──────────────────────────────────────────────────── */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--accent);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      font-size: .85rem;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0d1117;
+      padding: .4rem .9rem;
+      border-radius: 6px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: .35rem;
+      transition: opacity .15s;
+    }
+    .btn-primary:hover { opacity: .85; }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Layout ──────────────────────────────────────────────────── */
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    .page-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      color: var(--text);
+    }
+
+    .page-title span {
+      font-size: .9rem;
+      font-weight: 400;
+      color: var(--muted);
+      margin-left: .5rem;
+    }
+
+    /* ── KPI Cards ───────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: .3rem;
+    }
+
+    .kpi-label {
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--muted);
+    }
+
+    .kpi-value {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+
+    .kpi-card.critical .kpi-value { color: var(--critical); }
+    .kpi-card.high     .kpi-value { color: var(--high); }
+    .kpi-card.medium   .kpi-value { color: var(--medium); }
+    .kpi-card.low      .kpi-value { color: var(--low); }
+    .kpi-card.info     .kpi-value { color: var(--info); }
+
+    /* ── Charts Grid ─────────────────────────────────────────────── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.2rem;
+    }
+
+    .card-title {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 260px;
+    }
+
+    .chart-wrap-tall {
+      position: relative;
+      height: 380px;
+    }
+
+    /* ── Programs Table ──────────────────────────────────────────── */
+    .table-wrap {
+      overflow-x: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+    }
+
+    .table-wrap.scrollable {
+      max-height: 480px;
+      overflow-y: auto;
+    }
+
+    .table-wrap.scrollable thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #0d1117;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .85rem;
+    }
+
+    thead th {
+      background: #0d1117;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-size: .72rem;
+      letter-spacing: .05em;
+      padding: .7rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .1s;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(88,166,255,.05); }
+
+    td {
+      padding: .7rem 1rem;
+      vertical-align: middle;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: .15rem .5rem;
+      border-radius: 12px;
+      font-size: .72rem;
+      font-weight: 600;
+    }
+
+    .badge-critical { background: rgba(248,81,73,.15); color: var(--critical); }
+    .badge-high     { background: rgba(255,123,114,.15); color: var(--high); }
+    .badge-medium   { background: rgba(227,179,65,.15); color: var(--medium); }
+    .badge-low      { background: rgba(63,185,80,.15); color: var(--low); }
+    .badge-info     { background: rgba(88,166,255,.15); color: var(--info); }
+
+    /* ── Scans Log ───────────────────────────────────────────────── */
+    .log-list {
+      list-style: none;
+      font-size: .82rem;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .log-item {
+      padding: .6rem .8rem;
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: .75rem;
+      align-items: center;
+    }
+
+    .log-item:last-child { border-bottom: none; }
+
+    .log-handle {
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .log-date {
+      color: var(--muted);
+      font-size: .75rem;
+      white-space: nowrap;
+    }
+
+    /* ── Loading/Empty ───────────────────────────────────────────── */
+    .loading {
+      text-align: center;
+      color: var(--muted);
+      padding: 3rem;
+      font-size: .9rem;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-right: .4rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ───────────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .8rem 1.2rem;
+      font-size: .85rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+      opacity: 0;
+      transition: opacity .3s;
+      z-index: 999;
+      max-width: 320px;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ── Full-width stacked bar card ─────────────────────────────── */
+    .full-card {
+      grid-column: 1 / -1;
+    }
+
+    /* ── Worker Status Panel ────────────────────────────────────────── */
+    .worker-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .worker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+
+    .worker-title {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .2rem .65rem;
+      border-radius: 20px;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .03em;
+    }
+    .status-badge.idle     { background: rgba(139,148,158,.15); color: var(--muted); }
+    .status-badge.running  { background: rgba(88,166,255,.15);  color: var(--accent); }
+    .status-badge.error    { background: rgba(248,81,73,.15);   color: var(--critical); }
+    .status-badge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .status-badge.running .dot { animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+    .worker-meta {
+      display: flex;
+      gap: 1.5rem;
+      font-size: .8rem;
+      color: var(--muted);
+      flex-wrap: wrap;
+      margin-bottom: .75rem;
+    }
+
+    .worker-meta strong { color: var(--text); }
+
+    /* Barra de progresso */
+    .progress-bar-wrap {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: .5rem;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      transition: width .4s ease;
+    }
+
+    .progress-label {
+      font-size: .75rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    /* Terminal de log */
+    .log-terminal {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .75rem;
+      height: 240px;
+      overflow-y: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: .75rem;
+      line-height: 1.55;
+      scroll-behavior: smooth;
+    }
+
+    .log-line {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-line.INFO  { color: #8b949e; }
+    .log-line.WARN  { color: var(--medium); }
+    .log-line.ERROR { color: var(--critical); }
+    .log-empty { color: #484f58; font-style: italic; }
+
+    /* ── Modal ─────────────────────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(1,4,9,.78);
+      backdrop-filter: blur(4px);
+      z-index: 500;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
+      overflow-y: auto;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 880px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.6);
+      transform: translateY(-16px);
+      transition: transform .22s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+    }
+    .modal-close {
+      background: none;
+      color: var(--muted);
+      font-size: 1.4rem;
+      line-height: 1;
+      padding: .2rem .5rem;
+      border-radius: 4px;
+      transition: color .15s, background .15s;
+    }
+    .modal-close:hover { color: var(--text); background: rgba(255,255,255,.07); }
+
+    .modal-body {
+      padding: 1.4rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.4rem;
+    }
+
+    .modal-kpi-row {
+      display: flex;
+      gap: .6rem;
+      flex-wrap: wrap;
+    }
+    .modal-kpi {
+      flex: 1 1 80px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .7rem .9rem;
+      text-align: center;
+    }
+    .modal-kpi .kpi-label { font-size: .68rem; }
+    .modal-kpi .kpi-value { font-size: 1.5rem; }
+
+    .modal-section-title {
+      font-size: .76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: .55rem;
+    }
+
+    .modal-info-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .4rem 2rem;
+      font-size: .83rem;
+      color: var(--muted);
+    }
+    .modal-info-row strong { color: var(--text); }
+
+    .modal-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .modal-table-wrap table thead th {
+      position: sticky;
+      top: 0;
+      background: #0d1117;
+      z-index: 1;
+    }
+
+    .scan-list { list-style: none; display: flex; flex-direction: column; gap: .5rem; }
+    .scan-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .6rem .9rem;
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+      font-size: .81rem;
+    }
+    .scan-item-header {
+      display: flex;
+      align-items: center;
+      gap: .7rem;
+    }
+    .scan-item .scan-date    { color: var(--muted); font-size: .74rem; white-space: nowrap; margin-left: auto; }
+    .scan-domains-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .25rem;
+    }
+    .scan-domain-tag {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: .1rem .4rem;
+      font-size: .69rem;
+      color: #94a3b8;
+      font-family: monospace;
+    }
+    .scan-status {
+      display: inline-block;
+      padding: .1rem .42rem;
+      border-radius: 10px;
+      font-size: .69rem;
+      font-weight: 700;
+    }
+    .scan-status.completed { background: rgba(63,185,80,.15);  color: var(--low); }
+    .scan-status.running   { background: rgba(88,166,255,.15); color: var(--accent); }
+    .scan-status.error     { background: rgba(248,81,73,.15);  color: var(--critical); }
+    .scan-status.pending   { background: rgba(139,148,158,.15); color: var(--muted); }
+
+    .modal-empty { color: var(--muted); font-size: .84rem; text-align: center; padding: 1.2rem 0; }
+
+    .scan-log-terminal {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 4px;
+      padding: .5rem .7rem;
+      font-family: 'Fira Code', monospace;
+      font-size: .68rem;
+      line-height: 1.5;
+      max-height: 180px;
+      overflow-y: auto;
+      margin-top: .35rem;
+      color: #8b949e;
+    }
+    .scan-log-terminal .ll-INFO  { color: #8b949e; }
+    .scan-log-terminal .ll-WARN  { color: #e3b341; }
+    .scan-log-terminal .ll-ERROR { color: #f85149; }
+    .scan-log-toggle {
+      background: none; border: none;
+      color: var(--accent); font-size: .71rem;
+      cursor: pointer; padding: 0;
+      text-decoration: underline;
+    }
+
+    .tr-clickable { cursor: pointer; }
+    .tr-clickable:hover td:first-child { color: #79c0ff !important; text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav>
+  <div class="nav-brand">
+    <i data-feather="shield"></i>
+    AutoBB
+  </div>
+  <div class="nav-actions">
+    <span id="last-update" style="font-size:.78rem;color:var(--muted)">—</span>
+    <button class="btn-primary" id="btn-run" onclick="triggerWorker()">
+      <i data-feather="play" style="width:14px;height:14px"></i>
+      Rodar scan agora
+    </button>
+    <button class="btn-primary" style="background:var(--surface);color:var(--text);border:1px solid var(--border)" onclick="loadAll()">
+      <i data-feather="refresh-cw" style="width:14px;height:14px"></i>
+      Atualizar
+    </button>
+  </div>
+</nav>
+
+<!-- Main -->
+<main class="container">
+  <h1 class="page-title">
+    Dashboard
+    <span id="subtitle">carregando...</span>
+  </h1>
+
+  <!-- KPI -->
+  <div class="kpi-grid">
+    <div class="kpi-card critical"><div class="kpi-label">Critical</div><div class="kpi-value" id="kpi-critical">—</div></div>
+    <div class="kpi-card high">   <div class="kpi-label">High</div>    <div class="kpi-value" id="kpi-high">—</div></div>
+    <div class="kpi-card medium"> <div class="kpi-label">Medium</div>  <div class="kpi-value" id="kpi-medium">—</div></div>
+    <div class="kpi-card low">    <div class="kpi-label">Low</div>     <div class="kpi-value" id="kpi-low">—</div></div>
+    <div class="kpi-card info">   <div class="kpi-label">Info</div>    <div class="kpi-value" id="kpi-info">—</div></div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <!-- Donut: distribuição por severidade -->
+    <div class="card">
+      <div class="card-title">Distribuição por Severidade</div>
+      <div class="chart-wrap">
+        <canvas id="chartDonut"></canvas>
+      </div>
+    </div>
+
+    <!-- Bar: total por programa (top 10) -->
+    <div class="card">
+      <div class="card-title">Top Programas — Total de Findings</div>
+      <div class="chart-wrap">
+        <canvas id="chartBar"></canvas>
+      </div>
+    </div>
+
+    <!-- Stacked bar: severidades por programa (full width) -->
+    <div class="card full-card">
+      <div class="card-title">Severidades por Programa</div>
+      <div class="chart-wrap-tall">
+        <canvas id="chartStacked"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Worker Status (tempo real) -->
+  <div class="worker-panel" id="worker-panel">
+    <div class="worker-header">
+      <div class="worker-title">
+        <i data-feather="cpu" style="width:15px;height:15px"></i>
+        Worker Status
+      </div>
+      <span class="status-badge idle" id="worker-badge">
+        <span class="dot"></span>
+        <span id="worker-badge-text">Idle</span>
+      </span>
+    </div>
+
+    <div class="worker-meta">
+      <span>Paralelos: <strong id="wk-parallel">—</strong></span>
+      <span>Programas: <strong id="wk-done">0</strong> / <strong id="wk-total">0</strong></span>
+      <span>Iniciado: <strong id="wk-started">—</strong></span>
+      <span>Concluído: <strong id="wk-finished">—</strong></span>
+    </div>
+
+    <!-- Programas rodando agora em paralelo -->
+    <div id="wk-active-wrap" style="display:none;margin:.5rem 0">
+      <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.3rem;letter-spacing:.05em">RODANDO AGORA</div>
+      <div id="wk-active-list" style="display:flex;flex-wrap:wrap;gap:.3rem"></div>
+    </div>
+
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="wk-bar" style="width:0%"></div>
+    </div>
+    <div class="progress-label"><span id="wk-pct">0</span>% completo</div>
+
+    <div class="log-terminal" id="wk-log">
+      <span class="log-empty">Aguardando logs...</span>
+    </div>
+  </div>
+
+  <!-- Tabela de programas -->
+  <div class="card" style="padding:0">
+    <div style="padding:.9rem 1.1rem .5rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+      <span class="card-title" style="margin:0">Programas</span>
+      <span id="prog-count" style="font-size:.75rem;color:var(--muted)"></span>
+    </div>
+    <div class="table-wrap scrollable" id="programs-table" style="border:none;border-radius:0;margin-bottom:0">
+      <div class="loading"><span class="spinner"></span> Carregando...</div>
+    </div>
+  </div>
+
+  <!-- Últimos scans -->
+  <div class="card-title" style="margin:1.5rem 0 .5rem">Últimos Scans</div>
+  <div class="card" style="padding:0">
+    <ul class="log-list" id="scans-log">
+      <li class="loading"><span class="spinner"></span> Carregando...</li>
+    </ul>
+  </div>
+</main>
+
+<!-- Modal de detalhe do programa -->
+<div class="modal-overlay" id="prog-modal" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i data-feather="shield" style="width:17px;height:17px;color:var(--accent)"></i>
+        <span id="modal-prog-name">—</span>
+      </div>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <div class="loading"><span class="spinner"></span> Carregando...</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── Config ─────────────────────────────────────────────────────────────────
+  const API = window.location.origin;
+
+  let chartDonut   = null;
+  let chartBar     = null;
+  let chartStacked = null;
+
+  const COLORS = {
+    critical: '#f85149',
+    high:     '#ff7b72',
+    medium:   '#e3b341',
+    low:      '#3fb950',
+    info:     '#58a6ff',
+  };
+
+  // ── Utils ──────────────────────────────────────────────────────────────────
+  function toast(msg, error = false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.style.borderColor = error ? '#f85149' : '#3fb950';
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 3500);
+  }
+
+  async function apiFetch(path, options = {}) {
+    const r = await fetch(API + path, options);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString('pt-BR');
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleTimeString('pt-BR');
+  }
+
+  // ── Load All ───────────────────────────────────────────────────────────────
+  async function loadAll() {
+    try {
+      const [vulnStats, progStats, programs, scans] = await Promise.all([
+        apiFetch('/api/stats/vulns'),
+        apiFetch('/api/stats/programs'),
+        apiFetch('/api/programs'),
+        apiFetch('/api/scans?limit=20'),
+      ]);
+
+      renderKPIs(vulnStats);
+      renderDonut(vulnStats);
+      renderBar(progStats);
+      renderStacked(progStats);
+      renderTable(progStats, programs);
+      renderScans(scans);
+
+      const total = Object.values(vulnStats).reduce((a, b) => a + b, 0);
+      document.getElementById('subtitle').textContent =
+        `${total} findings · ${programs.length} programas`;
+
+      document.getElementById('last-update').textContent =
+        'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+
+    } catch (e) {
+      toast('Erro ao carregar dados: ' + e.message, true);
+      console.error(e);
+    }
+  }
+
+  // ── KPIs ───────────────────────────────────────────────────────────────────
+  function renderKPIs(stats) {
+    ['critical','high','medium','low','info'].forEach(sev => {
+      document.getElementById('kpi-' + sev).textContent =
+        (stats[sev] ?? 0).toLocaleString('pt-BR');
+    });
+  }
+
+  // ── Donut ──────────────────────────────────────────────────────────────────
+  function renderDonut(stats) {
+    const labels = ['Critical','High','Medium','Low','Info'];
+    const data   = [stats.critical, stats.high, stats.medium, stats.low, stats.info];
+    const colors = [COLORS.critical, COLORS.high, COLORS.medium, COLORS.low, COLORS.info];
+
+    if (chartDonut) chartDonut.destroy();
+
+    chartDonut = new Chart(document.getElementById('chartDonut'), {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0, hoverOffset: 6 }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '68%',
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { color: '#8b949e', font: { size: 12 }, padding: 14 },
+          },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString('pt-BR')}` } },
+        },
+      },
+    });
+  }
+
+  // ── Bar (top 10 programas por total) ──────────────────────────────────────
+  function renderBar(progStats) {
+    const sorted = [...progStats]
+      .map(p => ({ ...p, total: (p.critical||0)+(p.high||0)+(p.medium||0)+(p.low||0)+(p.info||0) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+
+    if (chartBar) chartBar.destroy();
+
+    chartBar = new Chart(document.getElementById('chartBar'), {
+      type: 'bar',
+      data: {
+        labels: sorted.map(p => p.program),
+        datasets: [{
+          label: 'Total',
+          data: sorted.map(p => p.total),
+          backgroundColor: COLORS.accent || '#58a6ff',
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#8b949e', maxRotation: 35 }, grid: { color: '#21262d' } },
+          y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' }, beginAtZero: true },
+        },
+      },
+    });
+  }
+
+  // ── Stacked Bar ───────────────────────────────────────────────────────────
+  function renderStacked(progStats) {
+    const sorted = [...progStats]
+      .map(p => ({ ...p, total: (p.critical||0)+(p.high||0)+(p.medium||0)+(p.low||0)+(p.info||0) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 15);
+
+    const labels = sorted.map(p => p.program);
+    const mkDataset = (sev, color) => ({
+      label: sev.charAt(0).toUpperCase() + sev.slice(1),
+      data: sorted.map(p => p[sev] || 0),
+      backgroundColor: color,
+      borderRadius: 2,
+    });
+
+    if (chartStacked) chartStacked.destroy();
+
+    chartStacked = new Chart(document.getElementById('chartStacked'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          mkDataset('critical', COLORS.critical),
+          mkDataset('high',     COLORS.high),
+          mkDataset('medium',   COLORS.medium),
+          mkDataset('low',      COLORS.low),
+          mkDataset('info',     COLORS.info),
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#8b949e', font: { size: 11 } } },
+        },
+        scales: {
+          x: { stacked: true, ticks: { color: '#8b949e', maxRotation: 35 }, grid: { color: '#21262d' } },
+          y: { stacked: true, ticks: { color: '#8b949e' }, grid: { color: '#21262d' }, beginAtZero: true },
+        },
+      },
+    });
+  }
+
+  // ── Programs Table ────────────────────────────────────────────────────────
+  function renderTable(progStats, programs) {
+    const statsMap = {};
+    progStats.forEach(p => { statsMap[p.program] = p; });
+
+    const rows = programs.map(prog => {
+      const name       = prog.program_name || prog.handle || '—';
+      const s          = statsMap[name] || {};
+      const total      = (s.critical||0)+(s.high||0)+(s.medium||0)+(s.low||0)+(s.info||0);
+      const safe       = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const scanned    = !!prog.last_scanned;
+      const icon       = scanned ? '✅' : '⏳';
+      const scanTitle  = scanned ? `Último scan: ${fmtDate(prog.last_scanned)}` : 'Ainda não escaneado';
+      const nameStyle  = scanned
+        ? 'color:var(--muted);font-weight:500'
+        : 'color:var(--accent);font-weight:600';
+      return `
+        <tr class="tr-clickable" onclick="openProgram('${safe}')">
+          <td>
+            <span title="${scanTitle}" style="margin-right:.35rem;font-size:.85rem">${icon}</span>
+            <span style="${nameStyle}">${name}</span>
+          </td>
+          <td><span class="badge badge-critical">${s.critical||0}</span></td>
+          <td><span class="badge badge-high">${s.high||0}</span></td>
+          <td><span class="badge badge-medium">${s.medium||0}</span></td>
+          <td><span class="badge badge-low">${s.low||0}</span></td>
+          <td><span class="badge badge-info">${s.info||0}</span></td>
+          <td><strong>${total}</strong></td>
+        </tr>`;
+    }).join('');
+
+    const scannedCount = programs.filter(p => p.last_scanned).length;
+    const el = document.getElementById('prog-count');
+    if (el) el.textContent = `${scannedCount} escaneados · ${programs.length - scannedCount} pendentes`;
+
+    document.getElementById('programs-table').innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Programa <span style="font-weight:400;font-size:.68rem;color:var(--muted)">(clique para detalhes)</span></th>
+            <th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Info</th><th>Total</th>
+          </tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="7" class="loading">Nenhum dado.</td></tr>'}</tbody>
+      </table>`;
+  }
+
+  // ── Scans Log ─────────────────────────────────────────────────────────────
+  function renderScans(scans) {
+    if (!scans.length) {
+      document.getElementById('scans-log').innerHTML =
+        '<li class="log-item" style="color:var(--muted)">Nenhum scan registrado ainda.</li>';
+      return;
+    }
+
+    document.getElementById('scans-log').innerHTML = scans.map(s => `
+      <li class="log-item">
+        <span class="log-handle">@${s.program_name || s.program_handle}</span>
+        <span style="color:var(--muted)">${(s.domains||[]).length} domínios</span>
+        <span class="log-date">${fmtDate(s.created_at)}</span>
+      </li>
+    `).join('');
+  }
+
+  // ── Worker Panel ──────────────────────────────────────────────────────────
+  let logTerminal = null;
+  let autoScroll  = true;
+
+  function applyWorkerSnapshot(d) {
+    const badge    = document.getElementById('worker-badge');
+    const badgeTxt = document.getElementById('worker-badge-text');
+
+    if (d.running) {
+      badge.className = 'status-badge running';
+      badgeTxt.textContent = 'Rodando';
+    } else if (d.last_error) {
+      badge.className = 'status-badge error';
+      badgeTxt.textContent = 'Erro';
+    } else {
+      badge.className = 'status-badge idle';
+      badgeTxt.textContent = d.finished_at ? 'Concluído' : 'Idle';
+    }
+
+    document.getElementById('wk-done').textContent     = d.done_programs    ?? 0;
+    document.getElementById('wk-total').textContent    = d.total_programs   ?? 0;
+    document.getElementById('wk-started').textContent  = fmtTime(d.started_at);
+    document.getElementById('wk-finished').textContent = fmtTime(d.finished_at);
+
+    const pct = d.progress ?? 0;
+    document.getElementById('wk-bar').style.width = pct + '%';
+    document.getElementById('wk-pct').textContent  = pct;
+
+    // Ativos em paralelo
+    const active    = d.active_programs || {};
+    const activeWrap = document.getElementById('wk-active-wrap');
+    const activeList = document.getElementById('wk-active-list');
+    const names = Object.keys(active);
+    document.getElementById('wk-parallel').textContent = names.length ? `${names.length} ativos` : '—';
+    if (names.length) {
+      activeWrap.style.display = '';
+      activeList.innerHTML = names.map(name => {
+        const step = active[name] || '';
+        return `<span title="${escHtml(step)}" style="
+          display:inline-flex;align-items:center;gap:.3rem;
+          background:#1e293b;border:1px solid #334155;
+          border-radius:4px;padding:.2rem .5rem;
+          font-size:.72rem;color:#94a3b8;
+          max-width:180px;overflow:hidden;white-space:nowrap;
+        ">
+          <span style="width:6px;height:6px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>
+          <span style="overflow:hidden;text-overflow:ellipsis">${escHtml(name)}</span>
+        </span>`;
+      }).join('');
+    } else {
+      activeWrap.style.display = 'none';
+      activeList.innerHTML = '';
+    }
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Durante replay do histórico, suprime scroll linha-a-linha
+  let replayScrollTimer = null;
+
+  function scheduleScrollToBottom() {
+    const el = document.getElementById('wk-log');
+    if (replayScrollTimer) clearTimeout(replayScrollTimer);
+    replayScrollTimer = setTimeout(() => {
+      el.scrollTop = el.scrollHeight;
+      replayScrollTimer = null;
+    }, 80);
+  }
+
+  function appendLogLine(line) {
+    const el = document.getElementById('wk-log');
+    // Limpa placeholder inicial
+    const empty = el.querySelector('.log-empty');
+    if (empty) empty.remove();
+
+    // Detecta nível para colorir
+    let level = 'INFO';
+    if (line.includes('[WARN]'))  level = 'WARN';
+    if (line.includes('[ERROR]')) level = 'ERROR';
+
+    const div = document.createElement('div');
+    div.className = `log-line ${level}`;
+    div.textContent = line;
+    el.appendChild(div);
+
+    // Mantém máximo de 200 linhas no DOM
+    while (el.children.length > 200) el.removeChild(el.firstChild);
+
+    // Durante replay (histórico chegando em burst) agenda scroll único ao fim
+    // Para logs ao vivo, scrolleia imediatamente se autoScroll ligado
+    if (replayScrollTimer !== null) {
+      scheduleScrollToBottom();
+    } else if (autoScroll) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }
+
+  function clearLog() {
+    const el = document.getElementById('wk-log');
+    el.innerHTML = '<span class="log-empty">Aguardando logs...</span>';
+  }
+
+  function startSSE() {
+    const es = new EventSource(API + '/api/worker/stream');
+
+    es.onmessage = (e) => {
+      let event;
+      try { event = JSON.parse(e.data); } catch { return; }
+
+      if (event.type === 'snapshot') {
+        clearLog();
+        applyWorkerSnapshot(event);
+        // Ativa modo replay: os próximos eventos log são histórico em burst
+        // O timer vai scrollar para o fim 80ms após o último log do burst
+        scheduleScrollToBottom();
+      } else if (event.type === 'progress') {
+        applyWorkerSnapshot(event);
+        // Quando finaliza, recarrega os dados do dashboard
+        if (!event.running && event.current_step === 'Finalizado') {
+          setTimeout(loadAll, 2000);
+        }
+      } else if (event.type === 'log') {
+        appendLogLine(event.line);
+      }
+    };
+
+    es.onerror = () => {
+      // Reconecta automático após 3s
+      es.close();
+      setTimeout(startSSE, 3000);
+    };
+  }
+
+  // Auto-scroll toggle ao clicar no terminal
+  document.addEventListener('DOMContentLoaded', () => {
+    const term = document.getElementById('wk-log');
+    if (term) {
+      term.addEventListener('scroll', () => {
+        autoScroll = term.scrollTop + term.clientHeight >= term.scrollHeight - 20;
+      });
+    }
+  });
+
+  // ── Program Modal ─────────────────────────────────────────────────────────
+  async function openProgram(name) {
+    const overlay = document.getElementById('prog-modal');
+    const body    = document.getElementById('modal-body');
+    document.getElementById('modal-prog-name').textContent = name;
+    body.innerHTML = '<div class="loading"><span class="spinner"></span> Carregando...</div>';
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    try {
+      const data = await apiFetch('/api/programs/' + encodeURIComponent(name));
+      renderModalContent(name, data);
+    } catch (e) {
+      body.innerHTML = `<div class="modal-empty">Erro ao carregar: ${e.message}</div>`;
+    }
+  }
+
+  function handleOverlayClick(e) {
+    if (e.target === document.getElementById('prog-modal')) closeModal();
+  }
+
+  function closeModal() {
+    document.getElementById('prog-modal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  function renderModalContent(name, data) {
+    const prog  = data.program || {};
+    const scans = data.scans   || [];
+    const vulns = data.vulns   || [];
+    const stats = data.stats   || {};
+    const scopeUrl = prog.latest_scope_version_id || `https://hackerone.com/${name}/policy_scopes`;
+
+    // KPIs de severidade
+    const kpisHtml = ['critical','high','medium','low','info'].map(sev => `
+      <div class="modal-kpi kpi-card ${sev}">
+        <div class="kpi-label">${sev.charAt(0).toUpperCase()+sev.slice(1)}</div>
+        <div class="kpi-value">${stats[sev] ?? 0}</div>
+      </div>`).join('');
+
+    // Info geral
+    const infoHtml = `
+      <div>
+        <div class="modal-section-title">Informações</div>
+        <div class="modal-info-row">
+          <span>Handle: <strong>${name}</strong></span>
+          <span>Adicionado: <strong>${fmtDate(prog.created_at)}</strong></span>
+          <span>Scans realizados: <strong>${scans.length}</strong></span>
+          <span>Escopo:
+            <a href="${scopeUrl}" target="_blank" style="color:var(--accent)">${scopeUrl}</a>
+          </span>
+        </div>
+      </div>`;
+
+    // Tabela de vulnerabilidades
+    const vulnsRows = vulns.map(v => {
+      const sev = v.severity || 'info';
+      const det = (v.details || '').slice(0, 120);
+      return `<tr>
+        <td style="font-size:.8rem">${v.host || '—'}</td>
+        <td style="font-size:.8rem">${v.vuln_name || '—'}</td>
+        <td><span class="badge badge-${sev}">${sev}</span></td>
+        <td style="color:var(--muted);font-size:.75rem;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(v.details||'').replace(/"/g,'&quot;')}">${det}</td>
+        <td style="color:var(--muted);font-size:.74rem;white-space:nowrap">${fmtDate(v.created_at)}</td>
+      </tr>`;
+    }).join('');
+
+    const vulnsHtml = `
+      <div>
+        <div class="modal-section-title">Vulnerabilidades (${vulns.length})</div>
+        ${vulns.length
+          ? `<div class="modal-table-wrap">
+               <table>
+                 <thead><tr><th>Host</th><th>Vuln</th><th>Severidade</th><th>Detalhes</th><th>Data</th></tr></thead>
+                 <tbody>${vulnsRows}</tbody>
+               </table>
+             </div>`
+          : '<div class="modal-empty">Nenhuma vulnerabilidade encontrada ainda.</div>'}
+      </div>`;
+
+    // Lista de scans
+    const scansItems = scans.map((s, idx) => {
+      const doms = s.domains || [];
+      const logs = s.logs || [];
+      const domTags = doms.map(d =>
+        `<span class="scan-domain-tag">${escHtml(d)}</span>`
+      ).join('');
+      const logLines = logs.map(line => {
+        let cls = 'll-INFO';
+        const l = line.toLowerCase();
+        if (l.includes('[wrn]') || l.includes('[warn]') || l.includes('warning')) cls = 'll-WARN';
+        if (l.includes('[err]') || l.includes('[error]') || l.includes('error') ||
+            l.includes('critical') || l.includes('high') || l.includes('fatal'))  cls = 'll-ERROR';
+        return `<div class="${cls}">${escHtml(line)}</div>`;
+      }).join('');
+      const logBlock = logs.length
+        ? `<button class="scan-log-toggle" onclick="toggleScanLog(${idx})">▶ ver logs (${logs.length} linhas)</button>
+           <div id="scan-log-${idx}" class="scan-log-terminal" style="display:none">${logLines}</div>`
+        : `<span style="color:var(--muted);font-size:.7rem">Sem logs (scan anterior à funcionalidade)</span>`;
+      return `
+      <li class="scan-item">
+        <div class="scan-item-header">
+          <span class="scan-status ${s.status||'completed'}">${s.status||'completed'}</span>
+          <span style="color:var(--muted);font-size:.74rem">${doms.length} domínios</span>
+          <span class="scan-date">${fmtDate(s.created_at)}</span>
+        </div>
+        <div class="scan-domains-wrap">${domTags}</div>
+        <div style="margin-top:.3rem">${logBlock}</div>
+      </li>`;
+    }).join('');
+
+    const scansHtml = `
+      <div>
+        <div class="modal-section-title">Scans Recentes (${scans.length})</div>
+        ${scans.length
+          ? `<ul class="scan-list">${scansItems}</ul>`
+          : '<div class="modal-empty">Nenhum scan registrado ainda.</div>'}
+      </div>`;
+
+    document.getElementById('modal-body').innerHTML =
+      `<div class="modal-kpi-row">${kpisHtml}</div>${infoHtml}${vulnsHtml}${scansHtml}`;
+  }
+
+  function toggleScanLog(idx) {
+    const el  = document.getElementById('scan-log-' + idx);
+    const btn = el.previousElementSibling;
+    if (el.style.display === 'none') {
+      el.style.display = 'block';
+      btn.textContent  = '▼ ocultar logs';
+      el.scrollTop = el.scrollHeight;
+    } else {
+      el.style.display = 'none';
+      btn.textContent  = '▶ ver logs (' + el.children.length + ' linhas)';
+    }
+  }
+
+  // ── Trigger Worker ────────────────────────────────────────────────────────
+  async function triggerWorker() {
+    const btn = document.getElementById('btn-run');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Rodando...';
+
+    try {
+      const res = await apiFetch('/api/run-worker', { method: 'POST' });
+      if (res.already_running) {
+        toast('Worker já está rodando!');
+      } else {
+        toast('Worker disparado! Acompanhe o progresso abaixo.');
+      }
+    } catch (e) {
+      toast('Erro ao disparar worker: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-feather="play" style="width:14px;height:14px"></i> Rodar scan agora';
+      feather.replace();
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  feather.replace();
+  loadAll();
+  startSSE();
+
+  // Auto-refresh a cada 5 minutos
+  setInterval(loadAll, 5 * 60 * 1000);
+</script>
+</body>
+</html>

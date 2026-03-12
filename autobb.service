@@ -1,0 +1,15 @@
+[Unit]
+Description=AutoBB Bug Bounty Worker
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/autobb/backend
+ExecStart=/root/autobb/venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 --log-level warning
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

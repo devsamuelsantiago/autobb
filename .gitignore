@@ -1,0 +1,32 @@
+# Ambiente virtual
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Variáveis de ambiente (contém credenciais)
+.env
+
+# Dados de programas (domains.txt gerados)
+programs/
+
+# Caches do scan4all
+.DbCache/
+resume.cfg
+/tmp/scan4all_*
+
+# Logs
+*.log
+nohup.out
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp
+
+# Config do scan4all (POCs, templates, wordlists, DBs)
+config/
+backend/config/

@@ -10,7 +10,9 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 350      # máximo por job no GitHub Actions
+    timeout-minutes: 350
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -71,9 +73,16 @@ jobs:
           run_worker_once()
           "
 
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Deploy frontend to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
-        if: github.ref == 'refs/heads/main'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./frontend
